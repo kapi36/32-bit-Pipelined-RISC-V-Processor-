@@ -14,6 +14,10 @@ module RISCV_32(clk1,clk2);
   reg [31:0] D_Mem[0:1023]; 
   
   
+  reg HALTED;         //set after hlt instruction is completed (in WB stage)
+  reg TAKEN_BRANCH;   //Required to disable instructions after branch
+  
+  
   // variables for stall cntrol unit
   reg PC_Write_En    =1'b1;
   reg IF_ID_Write_En =1'b1;
@@ -23,9 +27,8 @@ module RISCV_32(clk1,clk2);
   //VARIABLES FOR FORWARDING UNIT
   reg [1:0] ForwardA = 2'b00;
   reg [1:0] ForwardB = 2'b00;
-  reg EX_MEM_FORWARDED_A=0;
-  reg EX_MEM_FORWARDED_B=0;
-  
+  reg MEM_WB_FORWARDED_A=0;
+  reg MEM_WB_FORWARDED_B=0;
   
   
   //Instruction set
@@ -74,15 +77,16 @@ module RISCV_32(clk1,clk2);
   parameter SLTU = 6'b100001; //
   parameter SLTIU = 6'b100010; //
   
-  parameter BLT = 6'b100011; 
-  parameter BGE = 6'b100100; 
-  parameter BLTU = 6'b100101; 
-  parameter BGEU = 6'b100110; 
+  parameter BLT = 6'b100011; //
+  parameter BGE = 6'b100100; //
+  parameter BLTU = 6'b100101; //
+  parameter BGEU = 6'b100110; //
   
-  parameter LUI = 6'b100111; //
+  parameter LUI = 6'b100111;  //
   parameter AUIPC = 6'b101000; //
   
-  parameter HLT   = 6'b111111; 
+  parameter HLT   = 6'b111111; //
+  
   
 //Instruction type
   parameter RR_ALU  = 4'b0000;
@@ -93,15 +97,11 @@ module RISCV_32(clk1,clk2);
   parameter HALT    = 4'b0101;
   parameter JUMP    = 4'b0110; 
   parameter LOAD_UPPER_Imm = 4'b1101; 
-   
-  reg HALTED;
-  //set after hlt instruction is completed (in WB stage)
   
-  reg TAKEN_BRANCH;
-  //Required to disable instructions after branch
-//   integer i;
+
   
-  //IF STAGE
+  
+  //INSTRUCTION FETCH (IF) STAGE
   always@(posedge clk1)
     if (HALTED==0 && PC_Write_En==1'b1)///////-----------------------------PC_Write_En    =1'b1
       begin
@@ -125,20 +125,24 @@ module RISCV_32(clk1,clk2);
                PC         <=#2 PC+1;
              end
        end
-     //end
+  
+  
+  
+  
               
-  //ID Stage
+  //INSTRUCTION DECODE (ID) Stage
   always @ (posedge clk2)
-    if (HALTED == 0  && IF_ID_Write_En ==1'b1)/////----------IF_ID_Write_En =1'b1
+    begin
+      if (HALTED == 0  && IF_ID_Write_En ==1'b1)/////----------IF_ID_Write_En =1'b1
               begin
                     if (IF_ID_IR [25:21]==5'b00000)
-                     ID_EX_A <=0;
+                     ID_EX_A <= #2 0;
                     else
                      ID_EX_A <=#2 Reg[IF_ID_IR[25:21]];
                   
                
                     if (IF_ID_IR [20:16]==5'b00000)
-                     ID_EX_B <=0;
+                     ID_EX_B <=#2 0;
                     else
                       ID_EX_B <=#2 Reg[IF_ID_IR[20:16]];
                  
@@ -160,92 +164,127 @@ module RISCV_32(clk1,clk2);
         JMP 				   : ID_EX_type <=#2 JUMP;
         HLT                    : ID_EX_type <=#2 HALT;
         default                : ID_EX_type <=#2 HALT;
-      endcase
-       end
+      endcase         
+  end
+        
+      
+      
+  ////////stall control unit/////////////
+  if ((ID_EX_type == 4'b0010) && ((ID_EX_IR[20:16] == IF_ID_IR[25:21])|| (ID_EX_IR[20:16] == IF_ID_IR[20:16])))
+  begin
+  PC_Write_En=1'b0;
+  IF_ID_Write_En=1'b0;
+  Stall_flush =1'b1;
+  end
+  else
+  begin
+  PC_Write_En=1'b1;
+  IF_ID_Write_En=1'b1;
+  Stall_flush =1'b0;
+  end
+  ///////////////////////////////////////
+  end
      
-            
+  
+  
+  
+  
  // EXECUTION Stage
            
  always @ ( posedge clk1)
-   
-   if(Stall_flush ==1'b1)
-     begin
-       PC_Write_En=1'b1;
-       IF_ID_Write_En=1'b1;
-       Stall_flush =1'b0;
-     end
-    
-  else 
+
+      if (HALTED == 0 && Stall_flush ==1'b0)
     begin
-  if (HALTED == 0)
-    begin
-      EX_MEM_type  <=#2  ID_EX_type;
-      EX_MEM_IR    <=#2  ID_EX_IR;
-      TAKEN_BRANCH <=#2  0;
+
       
-      //------------------------------------------------------------------------------
-      ///forwarding unit
-      
+      ///////Forwarding unit-2/////////////////////////////////////////
       case (EX_MEM_type)
          RR_ALU         : begin
-           			      if ((EX_MEM_IR[15:11]!=0) &&  (EX_MEM_IR[15:11] == ID_EX_IR[25:21]))
-                           ForwardA=2'b01;
-                          if ((EX_MEM_IR[15:11]!=0) &&  (EX_MEM_IR[15:11] == ID_EX_IR[20:16]))
-                           ForwardB=2'b01;
+                          if ((MEM_WB_FORWARDED_A==0) && (EX_MEM_IR[15:11]!=0) &&  (EX_MEM_IR[15:11] == ID_EX_IR[25:21]))
+                           begin
+                             ForwardA =2'b01;
+                             ID_EX_A  = EX_MEM_ALUOut; 
+                           end
+                          if ((MEM_WB_FORWARDED_B==0) &&(EX_MEM_IR[15:11]!=0) &&  (EX_MEM_IR[15:11] == ID_EX_IR[20:16]))
+                           begin
+                             ForwardB=2'b01;
+                             ID_EX_B = EX_MEM_ALUOut;  
+                           end
                           end
          
-         RM_ALU         : begin
-           				  if ((EX_MEM_IR[20:16]!=0) &&  (EX_MEM_IR[20:16] == ID_EX_IR[25:21]))
-                           ForwardA=2'b01;
-                          if ((EX_MEM_IR[20:16]!=0) &&  (EX_MEM_IR[20:16] == ID_EX_IR[20:16]))
-                           ForwardB=2'b01;
+          RM_ALU, LOAD_UPPER_Imm        : begin
+           				  if ((MEM_WB_FORWARDED_A==0) &&(EX_MEM_IR[20:16]!=0) &&  (EX_MEM_IR[20:16] == ID_EX_IR[25:21]))
+                           begin
+                             ForwardA =2'b01;
+                             ID_EX_A  = EX_MEM_ALUOut; 
+                           end
+                          if ((MEM_WB_FORWARDED_B==0) &&(EX_MEM_IR[20:16]!=0) &&  (EX_MEM_IR[20:16] == ID_EX_IR[20:16]))
+                            begin
+                             ForwardB=2'b01;
+                             ID_EX_B = EX_MEM_ALUOut;  
+                           end
+                          end
+        
+         LOAD            : begin
+           				  if ((MEM_WB_FORWARDED_A==0) &&(EX_MEM_IR[20:16]!=0) &&  (EX_MEM_IR[20:16] == ID_EX_IR[25:21]))
+                           begin
+                             ForwardA =2'b01;
+                             ID_EX_A  = MEM_WB_LMD; 
+                           end
+                          if ((MEM_WB_FORWARDED_B==0) &&(EX_MEM_IR[20:16]!=0) &&  (EX_MEM_IR[20:16] == ID_EX_IR[20:16]))
+                            begin
+                             ForwardB=2'b01;
+                             ID_EX_B = MEM_WB_LMD;  
+                           end
                           end
         endcase
 
       
-      
        if (ForwardA == 2'b00) 
          begin
            ID_EX_A <= ID_EX_A;
-           EX_MEM_FORWARDED_A <=0;
          end
      
        else if (ForwardA == 2'b01)
         begin
-          ID_EX_A <= EX_MEM_ALUOut;  
-          EX_MEM_FORWARDED_A <=1;
+          ForwardA <=#2 2'b00;
         end
       
        else if (ForwardA == 2'b10)
         begin
-          ID_EX_A <=  MEM_WB_ALUOut;  
-          EX_MEM_FORWARDED_A <=0;
+          MEM_WB_FORWARDED_A <=#2 0;
+          ForwardA <=#2 2'b00;
         end
           
                 
       if (ForwardB == 2'b00) 
          begin
            ID_EX_B <= ID_EX_B;
-           EX_MEM_FORWARDED_B <=0;
          end
      
       else if (ForwardB == 2'b01)
         begin
-          ID_EX_B <= EX_MEM_ALUOut;  
-          EX_MEM_FORWARDED_B <=1;
+          ForwardB <=#2 2'b00;
         end
       
       else if (ForwardB == 2'b10)
         begin
-          ID_EX_B <=  MEM_WB_ALUOut;  
-          EX_MEM_FORWARDED_B <=0;
+          MEM_WB_FORWARDED_B <=#2 0;
+          ForwardB <=#2 2'b00;
         end
           
-      //---------------------------------------------------------------------------------------------
+      //////////////////////////////////////////////////////////////////////////////
  
+      
+      
+      EX_MEM_type  <=#2  ID_EX_type;
+      EX_MEM_IR    <=#2  ID_EX_IR;
+      TAKEN_BRANCH <=#2  0;
+      #2;//to stop the execution until the value of ID_EX_A and ID_EX_B IS NOT CHANGED BY THE FORWARDING UNIT
       case ( ID_EX_type)
-      RR_ALU: begin
-        #2
+        
+        RR_ALU: begin
+        
               case( ID_EX_IR[31:26] )  //OPCODE
               ADD : EX_MEM_ALUOut  <=#2 ID_EX_A + ID_EX_B;
               SUB : EX_MEM_ALUOut  <=#2 ID_EX_A - ID_EX_B;
@@ -301,30 +340,9 @@ module RISCV_32(clk1,clk2);
           JUMP: EX_MEM_ALUOut <=#2 ID_EX_NPC + ID_EX_Imm;
         
        endcase
- 
+    end
 
-    
-      
-  //--------------------------------------------------------------------------------
-//stall control unit
-  if ((ID_EX_type == 4'b0010) && ((ID_EX_IR[20:16] == IF_ID_IR[25:21])|| (ID_EX_IR[20:16] == IF_ID_IR[20:16])))
-  begin
-  PC_Write_En=1'b0;
-  IF_ID_Write_En=1'b0;
-  Stall_flush =1'b1;
-  end
-  else
-  begin
-  PC_Write_En=1'b1;
-  IF_ID_Write_En=1'b1;
-  Stall_flush =1'b0;
-  end
-      
-    end
-    end
        
-  ////----------------------------------------------------------------------------------------------------
-  
   
   
   
@@ -334,37 +352,55 @@ module RISCV_32(clk1,clk2);
  always @ (posedge clk2)
    if (HALTED == 0)
      begin
-       MEM_WB_type <= #2 EX_MEM_type;
-       MEM_WB_IR   <= #2 EX_MEM_IR;
        
        
        
        
-       //----------------------------------------------------------------------------------------------
-       //FORWARDING UNIT
+       ////////////////////////////////FORWARDING UNIT-1/////////////////////////////////////
        case (MEM_WB_type)
          RR_ALU         : begin
-           if ((EX_MEM_FORWARDED_A==0) && (MEM_WB_IR[15:11]!=0) && ( MEM_WB_IR[15:11] == ID_EX_IR[25:21]))
-                           ForwardA=2'b10;
-           if ((EX_MEM_FORWARDED_B==0) &&(MEM_WB_IR[15:11]!=0) && (MEM_WB_IR[15:11] == ID_EX_IR[20:16]))
-                           ForwardB=2'b10;
+                          if ((MEM_WB_IR[15:11]!=0) && ( MEM_WB_IR[15:11] == IF_ID_IR[25:21]))
+                           begin
+                             ForwardA=2'b10;
+                             ID_EX_A =  MEM_WB_ALUOut;
+                             MEM_WB_FORWARDED_A=1;
+                           end
+                          if ((MEM_WB_IR[15:11]!=0) && (MEM_WB_IR[15:11] == IF_ID_IR[20:16]))
+                           begin
+                             ForwardB=2'b10;
+                             ID_EX_B =  MEM_WB_ALUOut;
+                             MEM_WB_FORWARDED_B=1;
+                           end
                           end
-         RM_ALU         : begin
-           if ((EX_MEM_FORWARDED_A==0) &&(MEM_WB_IR[20:16]!=0) && ( MEM_WB_IR[20:16] == ID_EX_IR[25:21]))
-                           ForwardA=2'b10;
-           if ((EX_MEM_FORWARDED_B==0) &&(MEM_WB_IR[20:16]!=0) && (MEM_WB_IR[20:16]  == ID_EX_IR[20:16]))
-                           ForwardB=2'b10;
+         
+          RM_ALU, LOAD_UPPER_Imm         : begin
+           				  if ((MEM_WB_IR[20:16]!=0) && ( MEM_WB_IR[20:16] == IF_ID_IR[25:21]))
+                           begin
+                             ForwardA=2'b10;
+                             ID_EX_A =  MEM_WB_ALUOut;
+                             MEM_WB_FORWARDED_A=1;
+                           end
+                          if ((MEM_WB_IR[20:16]!=0) && (MEM_WB_IR[20:16]  == IF_ID_IR[20:16]))
+                           begin
+                             ForwardB=2'b10;
+                             ID_EX_B =  MEM_WB_ALUOut;
+                             MEM_WB_FORWARDED_B=1;
+                           end
                           end
         endcase
-       //-----------------------------------------------------------------------------------
+       ///////////////////////////////////////////////////////////////////////////////////////////////
+       
+      
+       
+       MEM_WB_type <= #2 EX_MEM_type;
+       MEM_WB_IR   <= #2 EX_MEM_IR;
        
        case (EX_MEM_type)
          RR_ALU, RM_ALU :   MEM_WB_ALUOut <=#2 EX_MEM_ALUOut;
          LOAD 			:   MEM_WB_LMD    <=#2 D_Mem[EX_MEM_ALUOut];
          
          LOAD_UPPER_Imm :   MEM_WB_ALUOut  <=#2 EX_MEM_ALUOut;
-           
-         // the 32 bit data at 32 bit effective address 
+         
          STORE :  begin
            case( EX_MEM_IR[31:26] )        
              SW: begin 
@@ -382,6 +418,8 @@ module RISCV_32(clk1,clk2);
            				   
         endcase
      end
+  
+  
             
             
  //WB STAGE
@@ -398,7 +436,6 @@ module RISCV_32(clk1,clk2);
              AUIPC: Reg[MEM_WB_IR[20:16]] <=#2 MEM_WB_ALUOut +PC;
            endcase 
          end
-         
          
          LOAD  : begin
            case( MEM_WB_IR[31:26] )   
