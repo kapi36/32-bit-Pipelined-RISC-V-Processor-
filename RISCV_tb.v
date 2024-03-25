@@ -218,41 +218,41 @@ module test_risc32;
   
   
   
-  // Finding the maximum value from a given array 
-  initial
-  begin
-    risc.D_Mem[200] = 10;
-    risc.D_Mem[201] = 9;
-    risc.D_Mem[202] = 7;
-    risc.D_Mem[203] = 12;
-    risc.D_Mem[204] = 30;
-    risc.D_Mem[205] = 9;
-    risc.D_Mem[206] = 32'hffffffff;//-1
+//   // Finding the maximum value from a given array 
+//   initial
+//   begin
+//     risc.D_Mem[200] = 10;
+//     risc.D_Mem[201] = 9;
+//     risc.D_Mem[202] = 7;
+//     risc.D_Mem[203] = 12;
+//     risc.D_Mem[204] = 30;
+//     risc.D_Mem[205] = 9;
+//     risc.D_Mem[206] = 32'hffffffff;//-1
     
-   for (k=0; k<31; k++)
-      risc.Reg[k] = k;
+//    for (k=0; k<31; k++)
+//       risc.Reg[k] = k;
     
-    risc.Mem[0] = 32'h480100c8; // ADDI R1,R0,200   
-    risc.Mem[1] = 32'h480200d2; // ADDI R2,R0,210   
-    risc.Mem[2] = 32'h48030006; // ADDI R3,R0,6
-    risc.Mem[3] = 32'h1c240000; // LW R4, 0(R1) --> load the data at 200 location in the memory into register R4
-    risc.Mem[4] = 32'h48210001; // UP:ADDI R1,R1,1
-    risc.Mem[5] = 32'h1c250000; // LW R5, 0(R1) --> load the data at 200 location in the memory into register R4
-    risc.Mem[6] = 32'h14d73800; // OR R7,R7,R7 -- dummy instr. 
-    risc.Mem[7] = 32'h90850002; // BGE R4,R5,DOWN
-    risc.Mem[8] = 32'h14d73800; // OR R7,R7,R7 -- dummy instr. 
-    risc.Mem[9] = 32'h00a02000; // ADD R4, R5,R0    --->--> storing the largest number 
-    risc.Mem[10] = 32'h4c630001; // Down: SUBI R3,R3,1
+//     risc.Mem[0] = 32'h480100c8; // ADDI R1,R0,200   
+//     risc.Mem[1] = 32'h480200d2; // ADDI R2,R0,210   
+//     risc.Mem[2] = 32'h48030006; // ADDI R3,R0,6
+//     risc.Mem[3] = 32'h1c240000; // LW R4, 0(R1) --> load the data at 200 location in the memory into register R4
+//     risc.Mem[4] = 32'h48210001; // UP:ADDI R1,R1,1
+//     risc.Mem[5] = 32'h1c250000; // LW R5, 0(R1) --> load the data at 200 location in the memory into register R4
+//     risc.Mem[6] = 32'h14d73800; // OR R7,R7,R7 -- dummy instr. 
+//     risc.Mem[7] = 32'h90850002; // BGE R4,R5,DOWN
+//     risc.Mem[8] = 32'h14d73800; // OR R7,R7,R7 -- dummy instr. 
+//     risc.Mem[9] = 32'h00a02000; // ADD R4, R5,R0    --->--> storing the largest number 
+//     risc.Mem[10] = 32'h4c630001; // Down: SUBI R3,R3,1
     
-    risc.Mem[11] = 32'h4460fff8; // BNEQZ R3, UP
-    risc.Mem[12] = 32'h14d73800; // OR R7,R7,R7 -- dummy instr.
-    risc.Mem[13] = 32'h20440000; // SW R4, 0 (R2)---> STORING THE RESULT AT D_mem[210]
-    risc.Mem[14] = 32'hfc000000; // HLT
-    risc.HALTED = 0;
-    risc.PC = 0;
-    risc.TAKEN_BRANCH = 0;
-    $monitor ("time=%3t,  R1= %3d,  R2=%3d,  R3=%3d,  R4=%3d,  R5=%3d,  DATA_MEM[210]=%3d",$time, $signed(risc.Reg[1]), $signed(risc.Reg[2]), $signed(risc.Reg[3]),  $signed(risc.Reg[4]), $signed(risc.Reg[5]), $signed(risc.D_Mem[210]));
-  end
+//     risc.Mem[11] = 32'h4460fff8; // BNEQZ R3, UP
+//     risc.Mem[12] = 32'h14d73800; // OR R7,R7,R7 -- dummy instr.
+//     risc.Mem[13] = 32'h20440000; // SW R4, 0 (R2)---> STORING THE RESULT AT D_mem[210]
+//     risc.Mem[14] = 32'hfc000000; // HLT
+//     risc.HALTED = 0;
+//     risc.PC = 0;
+//     risc.TAKEN_BRANCH = 0;
+//     $monitor ("time=%3t,  R1= %3d,  R2=%3d,  R3=%3d,  R4=%3d,  R5=%3d,  DATA_MEM[210]=%3d",$time, $signed(risc.Reg[1]), $signed(risc.Reg[2]), $signed(risc.Reg[3]),  $signed(risc.Reg[4]), $signed(risc.Reg[5]), $signed(risc.D_Mem[210]));
+//   end
   
  
   
@@ -295,25 +295,25 @@ module test_risc32;
   
   
   
-//    // MOVE R1,R2----5 cycles
-//   initial
-//   begin
+    // MOVE R1,R2----5 cycles
+  initial
+  begin
 
-//     risc.D_Mem[210] = 40;
-//     for (k=0; k<31; k++)
-//        risc.Reg[k] = k;
+    risc.D_Mem[210] = 40;
+    for (k=0; k<31; k++)
+       risc.Reg[k] = k;
     
  
-//     risc.Mem[0] = 32'h480200d2; // ADDI R2,R0,210  
-//     risc.Mem[1] = 32'h1c410000;//  LW R1, 0(R2)
-//     risc.Mem[2] = 32'h00222000; // ADD R4,R1,R2
-//     risc.Mem[3] = 32'h04822800; // SUB R5,R4,R2
-//     risc.Mem[4] = 32'hfc000000; // HLT
-//     risc.HALTED = 0;
-//     risc.PC = 0;
-//     risc.TAKEN_BRANCH = 0;
-//     $monitor ("time=%0t, R1=%0d,  R2=%0d, R4=%0d, R5=%0d, Stall_flush=%0h,ForwardA=%0d, ForwardB=%0d,ID_EX_A=%0h,ID_EX_B=%0h,IF_ID_IR[20:16]=%0h,MEM_WB_ALUOut=%0h,EX_MEM_ALUOut=%0h",$time,$signed(risc.Reg[1]),$signed(risc.Reg[2]),$signed(risc.Reg[4]),$signed(risc.Reg[5]),risc.Stall_flush,risc.ForwardA,risc.ForwardB,risc.ID_EX_A,risc.ID_EX_B,risc.IF_ID_IR[20:16],risc.MEM_WB_ALUOut,risc.EX_MEM_ALUOut);
-//   end
+    risc.Mem[0] = 32'h480200d2; // ADDI R2,R0,210  
+    risc.Mem[1] = 32'h1c410000;//  LW R1, 0(R2)
+    risc.Mem[2] = 32'h00222000; // ADD R4,R1,R2
+    risc.Mem[3] = 32'h04822800; // SUB R5,R4,R2
+    risc.Mem[4] = 32'hfc000000; // HLT
+    risc.HALTED = 0;
+    risc.PC = 0;
+    risc.TAKEN_BRANCH = 0;
+    $monitor ("time=%0t, R1=%0d,  R2=%0d, R4=%0d, R5=%0d, Stall_flush=%0h,ForwardA=%0d, ForwardB=%0d,ID_EX_A=%0h,ID_EX_B=%0h,IF_ID_IR[20:16]=%0h,MEM_WB_ALUOut=%0h,EX_MEM_ALUOut=%0h",$time,$signed(risc.Reg[1]),$signed(risc.Reg[2]),$signed(risc.Reg[4]),$signed(risc.Reg[5]),risc.Stall_flush,risc.ForwardA,risc.ForwardB,risc.ID_EX_A,risc.ID_EX_B,risc.IF_ID_IR[20:16],risc.MEM_WB_ALUOut,risc.EX_MEM_ALUOut);
+  end
  
 
   
