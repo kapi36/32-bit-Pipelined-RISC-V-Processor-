@@ -1,5 +1,3 @@
-// Code your design here
-// Code your design here
 module RISCV_32(clk1,clk2);
   input clk1,clk2;  //Two phase clock
   
@@ -9,7 +7,7 @@ module RISCV_32(clk1,clk2);
   reg [31:0] EX_MEM_IR, EX_MEM_ALUOut, EX_MEM_B, EX_MEM_cond;
   reg [31:0] MEM_WB_IR, MEM_WB_ALUOut, MEM_WB_LMD;
   reg [31:0] EX_MEM_cond1 , EX_MEM_cond2, EX_MEM_cond3,EX_MEM_cond4;
-  reg [63:0] Reg_For_Mul; 
+  reg [63:0] Reg_For_Mul; ///////-----------------------------
  
   
   reg [31:0] Reg [0:31];  // Register bank of 32 registers with each registers of 32 bit width
@@ -42,7 +40,7 @@ module RISCV_32(clk1,clk2);
   parameter OR   = 7'b0000011; //
   parameter XOR  = 7'b0000100; //
   parameter SLT  = 7'b0000101; //
-  parameter SLTU = 7'b0000110; // Shift less than unsigned 
+  parameter SLTU = 7'b0000110; // Sett less than unsigned 
   parameter SLL  = 7'b0000111; // shift left logical 
   parameter SRL  = 7'b0001000; // shift right logic 
   parameter SRA  = 7'b0001001; // shift Right Arithmetic 
@@ -55,33 +53,33 @@ module RISCV_32(clk1,clk2);
   parameter ORI   = 7'b0001101; //
   parameter XORI  = 7'b0001110; //
   parameter SLTI  = 7'b0001111; //
-  parameter SLTIU = 7'b0010000; // Shift less than Immediate unsigned 
+  parameter SLTIU = 7'b0010000; // Set less than Immediate unsigned 
   parameter SLLI  = 7'b0010001; // shift left logical immediate 
   parameter SRLI  = 7'b0010010; // shift right logic immediate
   parameter SRAI  = 7'b0010011; // shift Right Arithmetic immediate
-  parameter NOP   = 7'b0010100; //same as ADDI R0,R0,0
+  parameter NOP   = 7'b0010100; // same as ADDI R0,R0,0
  
   
-  // U type format for base isa 
-  parameter LW  = 7'b0010101; //
-  parameter LB  = 7'b0010110;// DONE
-  parameter LH  = 7'b0010111; // DONE
+  // U type instructions
+  parameter LW  = 7'b0010101; // load word(32 bit)
+  parameter LB  = 7'b0010110; // load byte (8 bit)
+  parameter LH  = 7'b0010111; // load half word(16 bit)
   parameter LBU = 7'b0011000; //
   parameter LHU = 7'b0011001; //
-  parameter LUI = 7'b0011010;  //
-  parameter AUIPC = 7'b0011011; 
-  parameter SW  = 7'b0011100; //
-  parameter SB  = 7'b0011101;  //
-  parameter SH  = 7'b0011110; 
+  parameter LUI = 7'b0011010; // load upper immediate--load upper 20 bits
+  parameter AUIPC = 7'b0011011;//
+  parameter SW  = 7'b0011100; // store word(32 bit)
+  parameter SB  = 7'b0011101; // store byte(8 bit)
+  parameter SH  = 7'b0011110; // store half word(16 bit)
   
   
-  parameter BEQZ = 7'b0011111; 
-  parameter BNEQZ= 7'b0100001; 
-  parameter BLT  = 7'b0100010; 
-  parameter BGE  = 7'b0100011; 
-  parameter BLTU = 7'b0100100;
-  parameter BGEU = 7'b0100101; 
-  parameter JLR =  7'b0100110; 
+  parameter BEQZ = 7'b0011111;//branch if equal to zero
+  parameter BNEQZ= 7'b0100001;//branch if not equal to zero 
+  parameter BLT  = 7'b0100010;// branch if less than
+  parameter BGE  = 7'b0100011;//branch if greater than  
+  parameter BLTU = 7'b0100100;//branch if less than unsigned
+  parameter BGEU = 7'b0100101;//branch if greater than equal to unsigned
+  parameter JLR =  7'b0100110;//unconditional jump
   
   parameter HLT = 7'b1111111; 
   
@@ -111,7 +109,7 @@ module RISCV_32(clk1,clk2);
   
   //INSTRUCTION FETCH (IF) STAGE
   always@(posedge clk1)
-    if (HALTED==0 && PC_Write_En==1'b1)///////-----------------------------PC_Write_En    =1'b1
+    if (HALTED==0 && PC_Write_En==1'b1)
       begin
         if ((( EX_MEM_IR[31:25] == BEQZ ) && (EX_MEM_cond == 1)) || 
             (( EX_MEM_IR[31:25] == BNEQZ ) && ( EX_MEM_cond == 0 ))||
@@ -119,8 +117,7 @@ module RISCV_32(clk1,clk2);
             (( EX_MEM_IR[31:25] == BLT ) && ( EX_MEM_cond2 == 1 )) ||
             (( EX_MEM_IR[31:25] == BGEU) && ( EX_MEM_cond3 == 1 )) ||
             (( EX_MEM_IR[31:25] == BLTU) && ( EX_MEM_cond4 == 1 )) ||
-            
-            ( EX_MEM_IR[31:25] == JLR ))
+            (  EX_MEM_IR[31:25] == JLR ))
             begin
               IF_ID_IR       <=#2 Mem[EX_MEM_ALUOut];
               TAKEN_BRANCH   <=#2 1'b1;
@@ -142,7 +139,7 @@ module RISCV_32(clk1,clk2);
   //INSTRUCTION DECODE (ID) Stage
   always @ (posedge clk2)
     begin
-      if (HALTED == 0  && IF_ID_Write_En ==1'b1)/////----------IF_ID_Write_En =1'b1
+      if (HALTED == 0  && IF_ID_Write_En ==1'b1)
         begin
                 if (IF_ID_IR [24:20]==5'b00000)
                      ID_EX_A <= #2 0;
@@ -158,29 +155,24 @@ module RISCV_32(clk1,clk2);
                 ID_EX_IR  <=  #2 IF_ID_IR;
                 ID_EX_NPC <=  #2 IF_ID_NPC;
                 ID_EX_Imm <=  #2 {{17{IF_ID_IR[14]}}, { IF_ID_IR[14:0]}};
+          
+          
           case (IF_ID_IR[31:25])               
-            ADD,SUB,AND,OR,XOR,SLT,SLTU,SLL,SRL,SRA,MUL,MULH,MULHU,
-            MULHSU,DIV,DIVU,REM,REMU: ID_EX_type <=#2 RR_ALU;  
-               
+            ADD,SUB,AND,OR,XOR,SLT,SLTU,SLL,SRL,SRA,MUL,MULH,MULHU,MULHSU,
+            DIV,DIVU,REM,REMU               : ID_EX_type <=#2 RR_ALU;  
+            
             ADDI,SUBI,SLTI, SLTIU ,ANDI, ORI,XORI,SLLI,SRLI,SRAI,
-            NOP  : ID_EX_type <=#2 RM_ALU;
+            NOP                             : ID_EX_type <=#2 RM_ALU;
             
-            LW,LB,LH,LBU,LHU       : ID_EX_type <=#2 LOAD;
-            
-            LUI,AUIPC              : ID_EX_type <= #2LOAD_UPPER_Imm;
-            
-            SW,SB,SH	           : ID_EX_type <=#2 STORE;
-            
-            BEQZ,BNEQZ,BLT,BGE,BLTU,BGEU : ID_EX_type <=#2 BRANCH;
-            
-            JLR 				   : ID_EX_type <=#2 JUMP;
-            
-            HLT                    : ID_EX_type <=#2 HALT;
-             
-            
+            LW,LB,LH,LBU,LHU                : ID_EX_type <=#2 LOAD;
+            LUI,AUIPC                       : ID_EX_type <= #2LOAD_UPPER_Imm;
+            SW,SB,SH	                    : ID_EX_type <=#2 STORE;
+            BEQZ,BNEQZ,BLT,BGE,BLTU,BGEU    : ID_EX_type <=#2 BRANCH;
+            JLR 				            : ID_EX_type <=#2 JUMP;
+            HLT                             : ID_EX_type <=#2 HALT; 
             default                : ID_EX_type <=#2 HALT;
-                endcase         
-              end
+          endcase         
+          end
         
       
       
@@ -208,10 +200,9 @@ module RISCV_32(clk1,clk2);
            
  always @ ( posedge clk1)
 
-      if (HALTED == 0 && Stall_flush ==1'b0)
+    if (HALTED == 0 && Stall_flush ==1'b0)
     begin
-
-      
+  
       ///////Forwarding unit-2/////////////////////////////////////////
       case (EX_MEM_type)
          RR_ALU         : begin
@@ -307,20 +298,20 @@ module RISCV_32(clk1,clk2);
               OR  : EX_MEM_ALUOut  <=#2 ID_EX_A | ID_EX_B; 
               XOR : EX_MEM_ALUOut  <=#2 ID_EX_A ^ ID_EX_B;
               SLT : EX_MEM_ALUOut  <=#2 ($signed(ID_EX_A) < $signed(ID_EX_B) )? 1:0;
-              SLTU : EX_MEM_ALUOut  <=#2 (ID_EX_A < ID_EX_B )? 1:0;
+              SLTU: EX_MEM_ALUOut  <=#2 (ID_EX_A < ID_EX_B )? 1:0;
               SLL : EX_MEM_ALUOut  <=#2 ID_EX_A << ID_EX_B;
               SRL : EX_MEM_ALUOut  <=#2 ID_EX_A >> ID_EX_B;
               SRA : EX_MEM_ALUOut  <=#2 ID_EX_A >>>ID_EX_B;
-              MUL :  EX_MEM_ALUOut <=#2($signed(ID_EX_A)* $signed(ID_EX_B));  
-            MULH : EX_MEM_ALUOut <=#2 ($signed(ID_EX_A)* $signed(ID_EX_B))>>32;  
-            MULHU : EX_MEM_ALUOut <=#2 (ID_EX_A * ID_EX_B)>>32;  
-            MULHSU :EX_MEM_ALUOut <=#2 ($signed(ID_EX_A) * ID_EX_B)>> 32 ; 
-            DIV :  EX_MEM_ALUOut <=#2 ($signed(ID_EX_A)/ $signed(ID_EX_B)); 
-            DIVU :  EX_MEM_ALUOut <=#2 (ID_EX_A/ ID_EX_B) ; 
-            REM  :  EX_MEM_ALUOut <=#2 ($signed(ID_EX_A) % ID_EX_B); 
-            REMU :  EX_MEM_ALUOut <=#2 (ID_EX_A % ID_EX_B) ; 
+              MUL : EX_MEM_ALUOut  <=#2($signed(ID_EX_A)* $signed(ID_EX_B));  
+              MULH: EX_MEM_ALUOut  <=#2 ($signed(ID_EX_A)* $signed(ID_EX_B))>>32;  
+              MULHU: EX_MEM_ALUOut <=#2 (ID_EX_A * ID_EX_B)>>32;  
+              MULHSU:EX_MEM_ALUOut <=#2 ($signed(ID_EX_A) * ID_EX_B)>> 32 ; 
+              DIV  : EX_MEM_ALUOut <=#2 ($signed(ID_EX_A)/ $signed(ID_EX_B)); 
+              DIVU : EX_MEM_ALUOut <=#2 (ID_EX_A/ ID_EX_B) ; 
+              REM  : EX_MEM_ALUOut <=#2 ($signed(ID_EX_A) % ID_EX_B); 
+              REMU : EX_MEM_ALUOut <=#2 (ID_EX_A % ID_EX_B) ; 
               
-                default : EX_MEM_ALUOut <=#2 32'hxxxxxxxx;
+              default : EX_MEM_ALUOut <=#2 32'hxxxxxxxx;
               endcase
               end
         
@@ -345,8 +336,8 @@ module RISCV_32(clk1,clk2);
                        EX_MEM_B      <=#2 ID_EX_B;
                        end
          LOAD_UPPER_Imm : begin
-           EX_MEM_ALUOut <=#2  {ID_EX_IR[24:21], ID_EX_IR[15:0],12'b0}; 
-           EX_MEM_B      <=#2 ID_EX_B;
+           EX_MEM_ALUOut <=#2  {ID_EX_IR[19:0],12'b0}; 
+           EX_MEM_B      <=#2  ID_EX_B;
                        end
          BRANCH: begin
            
@@ -359,20 +350,22 @@ module RISCV_32(clk1,clk2);
            EX_MEM_cond3 <= #2   (ID_EX_A >= ID_EX_B) ; //BGEU
            EX_MEM_cond4 <= #2   (ID_EX_A < ID_EX_B); //BLTU
                  end
-          JUMP: EX_MEM_ALUOut <=#2 ID_EX_NPC + ID_EX_Imm;
+          JUMP: EX_MEM_ALUOut <=#2 ID_EX_NPC + ID_EX_Imm;//$signed(ID_EX_IMM)
         
        endcase
     end
    
+  
+  
+  
+  
  // MEM STAGE
-            
+       
  always @ (posedge clk2)
    if (HALTED == 0)
      begin
        
-       
-       
-       
+ 
        ////////////////////////////////FORWARDING UNIT-1/////////////////////////////////////
        case (MEM_WB_type)
          RR_ALU         : begin
@@ -382,7 +375,7 @@ module RISCV_32(clk1,clk2);
                              ID_EX_A =  MEM_WB_ALUOut;
                              MEM_WB_FORWARDED_A=1;
                            end
-                          if ((MEM_WB_IR[14:10]!=0) && (MEM_WB_IR[14:10] == IF_ID_IR[20:16]))
+           if ((MEM_WB_IR[14:10]!=0) && (MEM_WB_IR[14:10] == IF_ID_IR[19:15]))
                            begin
                              ForwardB=2'b10;
                              ID_EX_B =  MEM_WB_ALUOut;
@@ -397,7 +390,7 @@ module RISCV_32(clk1,clk2);
                              ID_EX_A =  MEM_WB_ALUOut;
                              MEM_WB_FORWARDED_A=1;
                            end
-                          if ((MEM_WB_IR[19:15]!=0) && (MEM_WB_IR[19:15]  == IF_ID_IR[20:16]))
+            if ((MEM_WB_IR[19:15]!=0) && (MEM_WB_IR[19:15]  == IF_ID_IR[19:15]))
                            begin
                              ForwardB=2'b10;
                              ID_EX_B =  MEM_WB_ALUOut;
