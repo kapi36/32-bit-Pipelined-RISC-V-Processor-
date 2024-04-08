@@ -1,0 +1,950 @@
+// Code your design here
+// Code your design here
+
+module RISCV_32(clk1,clk2);
+  input clk1,clk2;  //Two phase clock
+  
+  reg [31:0] PC, IF_ID_IR, IF_ID_NPC;
+  reg [31:0] ID_EX_IR, ID_EX_NPC, ID_EX_A, ID_EX_B,ID_EX_C,ID_EX_Imm;//ID_EX_C is used for 3 source registers floating point instructions
+  reg [3:0]  ID_EX_type, EX_MEM_type, MEM_WB_type;
+  reg [31:0] EX_MEM_IR, EX_MEM_ALUOut, EX_MEM_B, EX_MEM_cond;
+  reg [31:0] MEM_WB_IR, MEM_WB_ALUOut, MEM_WB_LMD;
+  reg [31:0] EX_MEM_cond1 , EX_MEM_cond2, EX_MEM_cond3,EX_MEM_cond4;
+  reg [63:0] Reg_For_Mul; 
+ 
+  
+  reg [31:0] Reg [0:31];  // Register bank of 32 registers with each registers of 32 bit width
+  reg [31:0] FReg[0:31];// Floating point registers 
+  reg [31:0] Mem [0:1023]; // Memory of 1024 locations with each location having 32 bit 
+  reg [31:0] D_Mem[0:1023]; 
+  
+  
+  
+  reg HALTED;         //set after hlt instruction is completed (in WB stage)
+  reg TAKEN_BRANCH;   //Required to disable instructions after branch
+  
+  
+  // variables for stall cntrol unit
+  reg PC_Write_En    =1'b1;
+  reg IF_ID_Write_En =1'b1;
+  reg Stall_flush    =1'b0;
+
+  
+  //VARIABLES FOR FORWARDING UNIT
+  reg [1:0] ForwardA = 2'b00;
+  reg [1:0] ForwardB = 2'b00;
+  reg MEM_WB_FORWARDED_A=0;
+  reg MEM_WB_FORWARDED_B=0;
+  
+  
+  
+ 
+  
+  //Instruction set
+  // Format R type 
+  parameter ADD  = 7'b0000000; //
+  parameter SUB  = 7'b0000001; //
+  parameter AND  = 7'b0000010; //
+  parameter OR   = 7'b0000011; //
+  parameter XOR  = 7'b0000100; //
+  parameter SLT  = 7'b0000101; //
+  parameter SLTU = 7'b0000110; // Shift less than unsigned 
+  parameter SLL  = 7'b0000111; // shift left logical 
+  parameter SRL  = 7'b0001000; // shift right logic 
+  parameter SRA  = 7'b0001001; // shift Right Arithmetic 
+  
+  
+  
+  parameter ADDI  = 7'b0001010; //
+  parameter SUBI  = 7'b0001011; //
+  parameter ANDI  = 7'b0001100; //
+  parameter ORI   = 7'b0001101; //
+  parameter XORI  = 7'b0001110; //
+  parameter SLTI  = 7'b0001111; //
+  parameter SLTIU = 7'b0010000; // Shift less than Immediate unsigned 
+  parameter SLLI  = 7'b0010001; // shift left logical immediate 
+  parameter SRLI  = 7'b0010010; // shift right logic immediate
+  parameter SRAI  = 7'b0010011; // shift Right Arithmetic immediate
+  parameter NOP   = 7'b0010100; //same as ADDI R0,R0,0
+ 
+  
+  // U type format for base isa 
+  parameter LW  = 7'b0010101; //
+  parameter LB  = 7'b0010110;// DONE
+  parameter LH  = 7'b0010111; // DONE
+  parameter LBU = 7'b0011000; //
+  parameter LHU = 7'b0011001; //
+  parameter LUI = 7'b0011010;  //
+  parameter AUIPC = 7'b0011011; 
+  parameter SW  = 7'b0011100; //
+  parameter SB  = 7'b0011101;  //
+  parameter SH  = 7'b0011110; 
+  
+  
+  parameter BEQZ = 7'b0011111; 
+  parameter BNEQZ= 7'b0100001; 
+  parameter BLT  = 7'b0100010; 
+  parameter BGE  = 7'b0100011; 
+  parameter BLTU = 7'b0100100;
+  parameter BGEU = 7'b0100101; 
+  parameter JAL =  7'b0100110; 
+  
+  parameter HLT = 7'b1111111; 
+  
+  // M extenstion instruction ; 
+  
+  parameter MUL   = 7'b0100111; 
+  parameter MULH  = 7'b0101000;
+  parameter MULHU = 7'b0101001;
+  parameter MULHSU= 7'b0101010;
+  parameter DIV   = 7'b0101011; 
+  parameter DIVU  = 7'b0101100;
+  parameter REM   = 7'b0101101; 
+  parameter REMU  = 7'b0101110; 
+  
+ 
+  parameter JALR = 7'b0101111; 
+  
+  // F extenstion Instructoin ; 
+  parameter FADD  = 7'b0110000;
+  parameter FSUB  = 7'b0110001; 
+  parameter FMUL  = 7'b0110010; 
+  parameter FDIV  = 7'b0110011; 
+  parameter FSQRT = 7'b0110100; 
+  parameter FMIN  = 7'b0110101; 
+  parameter FMAX  = 7'b0110110; 
+  parameter FEQ   = 7'b0110111; 
+  parameter FLE   = 7'b0111000; 
+  parameter FLT   = 7'b0111001; 
+  parameter FMADD = 7'b0111010;
+  parameter FMSUB = 7'b0111011;
+  parameter FNMADD = 7'b0111100;
+  parameter FNMSUB = 7'b0111101;
+  
+  
+//Instruction type
+  parameter RR_ALU  = 4'b0000;
+  parameter RM_ALU  = 4'b0001;
+  parameter LOAD    = 4'b0010;
+  parameter STORE   = 4'b0011;
+  parameter BRANCH  = 4'b0100;
+  parameter HALT    = 4'b0101;
+  parameter JUMP    = 4'b0110; 
+  parameter RF_ALU  = 4'b0111;
+  parameter RF_4ALU = 4'b1000;
+  parameter RF_CMP  = 4'b1001;
+  parameter LOAD_UPPER_Imm = 4'b1101; 
+  
+  
+  // Register for Floating point unit 
+  
+    
+  reg [23:0] A_Mantissa,B_Mantissa,Temp_Mantissa ; 
+  reg [22:0] Mantissa;
+  reg [7:0] Exponent,A_Exponent,B_Exponent,diff_Exponent,exp_adjust,Temp_Exponent; 
+  reg Sign,A_sign,B_sign,comp,carry,MSB,remainder,pos;
+  reg [31:0] Temp,Temp1;
+  reg [47:0] MUL_Mantissa; 
+  reg [31:0] reciprocal;
+  reg [7:0]  Exp_2,Exp_Adjust;
+
+  
+////////////////////////////////////////////////////////////////
+function [31:0] floating_point_addition;
+  input [31:0] A; 
+  input [31:0] B; 
+  begin
+    comp =  (A[30:23] >= B[30:23])? 1'b1 : 1'b0; 
+    A_Mantissa = comp ? {1'b1,A[22:0]} : {1'b1,B[22:0]}; 
+    A_Exponent = comp ? A[30:23] : B[30:23];
+    A_sign = comp ? A[31] : B[31];
+    
+    B_Mantissa = comp ? {1'b1,B[22:0]} : {1'b1,A[22:0]};
+    B_Exponent = comp ? B[30:23] : A[30:23];
+    B_sign = comp ? B[31] : A[31];
+    
+    diff_Exponent = A_Exponent-B_Exponent;
+    B_Mantissa = (B_Mantissa >> diff_Exponent);
+    {carry,Temp_Mantissa} =  (A_sign ~^ B_sign)? A_Mantissa + B_Mantissa : A_Mantissa-B_Mantissa ; 
+exp_adjust = A_Exponent;
+  
+if(carry)
+    begin
+        Temp_Mantissa = Temp_Mantissa>>1; // right shift  
+        exp_adjust = exp_adjust+1'b1; // after right shifting we got one extra exponent we added the exponent 
+    end
+else
+    begin
+      while(!Temp_Mantissa[23])// if my temp mantissa 24 bit is zero then do left shift until and unless it becomes 1 and decrease the exponent as we shifting left the number 
+        begin
+           Temp_Mantissa = Temp_Mantissa<<1;
+           exp_adjust =  exp_adjust-1'b1;
+        end
+    end
+Sign = A_sign;
+Mantissa = Temp_Mantissa[22:0];
+Exponent = exp_adjust;
+end
+
+  floating_point_addition = {Sign,Exponent,Mantissa};//sign of result will be same as the sign of the larger number.
+endfunction
+////////////////////////////////////
+  
+  
+/////////////////////////////////////
+function [31:0] floating_point_subtraction;
+input [31:0] A; 
+input [31:0] B; 
+begin
+    comp =  (A[30:23] >= B[30:23])? 1'b1 : 1'b0; 
+    A_Mantissa = comp ? {1'b1,A[22:0]} : {1'b1,B[22:0]}; 
+    A_Exponent = comp ? A[30:23] : B[30:23];
+    A_sign = comp ? A[31] : B[31];
+    
+    B_Mantissa = comp ? {1'b1,B[22:0]} : {1'b1,A[22:0]};
+    B_Exponent = comp ? B[30:23] : A[30:23];
+    B_sign = comp ? B[31] : A[31];
+    
+    diff_Exponent = A_Exponent-B_Exponent;
+    B_Mantissa = (B_Mantissa >> diff_Exponent);
+    {carry,Temp_Mantissa} =  (A_sign^ B_sign)? A_Mantissa + B_Mantissa : A_Mantissa-B_Mantissa ; 
+exp_adjust = A_Exponent; 
+    if(carry)begin
+      Temp_Mantissa = Temp_Mantissa>>1; // right shift 
+      exp_adjust = exp_adjust+1'b1; // after right shifting we got one extra exponent we added the exponent 
+    end
+else
+    begin
+      while(!Temp_Mantissa[23])// if my temp mantissa 24 bit is zero then do left shift until and unless it becomes 1 and decrease the exponent as we shifting left the number 
+        begin
+           Temp_Mantissa = Temp_Mantissa<<1;
+           exp_adjust =  exp_adjust-1'b1;
+        end
+    end
+Sign = A_sign;
+Mantissa = Temp_Mantissa[22:0];
+Exponent = exp_adjust;
+end
+
+  floating_point_subtraction = {Sign,Exponent,Mantissa};//sign of result will be same as the sign of the larger number.
+endfunction
+//////////////////////////////////////////
+ 
+///////////////////////////////////////////////
+//function for Floating point multiplicatoin 
+function [31:0] floating_point_multiplication;
+input[31:0] A,B; 
+integer i = 0 ; 
+begin
+      A_Mantissa = {1'b1,A[22:0]};//Storing A value
+      A_Exponent = A[30:23];
+      A_sign = A[31];
+      
+      B_Mantissa = {1'b1,B[22:0]}; // Stroing B value
+      B_Exponent = B[30:23];
+      B_sign = B[31];
+      MUL_Mantissa = A_Mantissa*B_Mantissa ;
+      Temp_Exponent = A_Exponent + B_Exponent -127 ; 
+      
+      if (MUL_Mantissa[47])begin 
+        Mantissa = MUL_Mantissa[46:24] ;
+        Exponent =  Temp_Exponent+1'b1 ;
+        end
+      else if(MUL_Mantissa[46])begin
+        Mantissa = MUL_Mantissa[45:23]; 
+        Exponent =  Temp_Exponent; 
+      end
+      else if (!MUL_Mantissa[46])begin 
+        i = 1 ; 
+        while(MUL_Mantissa[46-i] == 0 )begin 
+          i = i+1 ; 
+        end
+        Exponent =  Temp_Exponent- i ;
+        MUL_Mantissa = MUL_Mantissa<< i ; 
+       Mantissa = MUL_Mantissa[45:23] ; 
+     end
+      Sign = A_sign^B_sign;
+end
+    floating_point_multiplication = {Sign,Exponent,Mantissa};//sign of result will be same as the sign of the larger number.
+endfunction
+////////////////////////////////////////////
+
+///////////////////////////////////////////////
+// function for floating point division   
+function [31:0]  floating_point_division;
+
+  input [31:0] A;
+  input [31:0] B;
+  
+  reg[31:0]D ; 
+  reg[31:0] temp1,temp2,temp3,temp4,temp5,temp6,temp7;
+  reg [31:0] x0,x1,x2,x3;
+
+  begin
+    D = {1'b1,8'd126,B[22:0]};
+// Initial value(X0) calculation 
+  temp1 = floating_point_multiplication(D,32'h3ff0f0f1);//multiplying (32/17)*(-D) and storing the result in temp1
+  x0 = floating_point_addition(32'h4034b4b5,temp1);     // adding (48/17)+ (-32D/17) resulting in the value of X0
+  
+// first iteration---> calculation of X1
+  temp2 = floating_point_multiplication (D, x0 );           //multiplying (-D)*X0 and storing it in temp2
+  temp3 = floating_point_addition (32'h40000000,temp2);    // adding 2 and (-D)*X0 and storing the result in temp3
+  x1 = floating_point_multiplication (x0,temp3);            // multiplying X0 with the temp3 resulting in the value of X1
+
+  
+// second iteration---> calculation of X2
+  temp4 = floating_point_multiplication (D,x1);           //multiplying (-D)*X1 and storing it in temp4
+  temp5 = floating_point_addition (32'h40000000,temp4);   // adding 2 and (-D)*X1 and storing the result in temp5
+  x2 = floating_point_multiplication (x1,temp5);          // multiplying X1 with the temp5 resulting in the value of X2
+
+  
+// third iteration---> calculation of X3
+  temp6 = floating_point_multiplication (D,x2);           //multiplying (-D)*X2 and storing it in temp6 
+  temp7 = floating_point_addition (32'h40000000,temp6);   // adding 2 and (-D)*X2 and storing the result in temp7
+  x3 = floating_point_multiplication (x2,temp7);          // multiplying X2 with the temp7 resulting in the value of X3
+
+  
+// Multiplicative inverse of D ---> 1/D Calculation
+    Temp_Exponent = x3[30:23]+8'd126-B[30:23];   // since we hace scaled the divisior in the range (0.5,1) by replacing the exponent of  divisior by 126 ( 2^-1) so after all the iterations reasiging the origial exponent of D
+    reciprocal = {B[31],Temp_Exponent,x3[22:0]};
+
+  end
+  /// Division fnum1/fnum2----------> fnum1*(1/fnum2)
+  floating_point_division = floating_point_multiplication (A,reciprocal);
+endfunction
+/////////////////////////////////
+  
+/////////////////////////////////
+// function for floating point square root 
+function[31:0] floating_point_sqrt; 
+input [31:0]A ;
+reg [31:0] D;
+reg Sign ; 
+reg [7:0] Exponent ; 
+reg [31:0] temp1,temp2,temp3,temp4,temp5,temp6,temp7,temp8,temp;
+reg [31:0] x0,x1,x2,x3;
+reg [31:0] sqrt2; // sqrt_1by05 -->1/sqrt(0.5) , sqrt_2, 
+begin
+    D= {1'b0,8'd126,A[22:0]};
+    x0 = 32'h3f5a827a;
+    sqrt2 = 32'h3fb504f3;// ------>  1.41
+    Sign = A[31];
+    Exponent = A[30:23];
+/*----First Iteration----*/
+    temp1 =  floating_point_division (D,x0); /// temp1 =   X/x0
+    temp2 = floating_point_addition (temp1,x0); // temp2 = temp1+x0
+    x1 = {temp2[31],temp2[30:23]-1,temp2[22:0]};
+  
+  
+/*----Second Iteration----*/
+  
+  temp3 =  floating_point_division (D,x1); //temp3 =  X/x1
+  temp4 = floating_point_addition (temp3,x1);// temp4 = temp3+x1 
+   x2 = {temp4[31],temp4[30:23]-1,temp4[22:0]};// x2 = 0.5*temp4 
+  
+  
+/*----Third Iteration----*/
+  temp5 =  floating_point_division (D,x2); 
+  temp6 = floating_point_addition(temp5,x2); 
+  x3 = {temp6[31],temp6[30:23]-1,temp6[22:0]}; /////x3 = temp6*0.5
+  temp7 = floating_point_multiplication(x3,sqrt2); 
+  pos = (Exponent>=8'd127) ? 1'b1 : 1'b0;
+
+  Exp_2 = pos ? (Exponent-8'd127)/2 : (Exponent-8'd127-1)/2 ;
+  remainder = (Exponent-8'd127)%2; 
+  temp = {temp7[31],Exp_2 + temp7[30:23],temp7[22:0]}; /// we got temp7 which is finally X and now multiply of X with Z . 
+  temp8 = floating_point_multiplication(temp,sqrt2); 
+    end
+
+floating_point_sqrt = remainder ? temp8 : temp;
+endfunction
+///////////////////////////////////////////////// 
+
+//////////////////////////////////////////////////
+// Function for max instruction ; 
+function[31:0] FloatingpointMax ; 
+input[31:0] A; 
+input[31:0] B; 
+begin
+      if(A[31]<B[31]) 
+        Temp =A ; // because A is positive and b is negative 
+      else if(A[31]>B[31]) 
+        Temp = B ; 
+      else begin 
+          if(A[30:23]>B[30:23]) 
+            Temp = A; 
+          else if(A[30:23]< B[30:23]) 
+            Temp = B; 
+          else begin
+              if(A[22:0]>B[22:0])
+                Temp = A; 
+              else if(A[22:0]<B[22:0])
+                Temp = B ; 
+              else 
+                Temp = A; 
+          end
+      end
+    end
+    FloatingpointMax = Temp ; 
+endfunction 
+//////////////////////////////////////////
+  
+//////////////////////////////////////////
+function[31:0] FloatingpointMin ; 
+input[31:0] A; 
+input [31:0] B; 
+begin
+      if(A[31]<B[31]) 
+        Temp1 =B ; // because A is positive and b is negative 
+      else if(A[31]>B[31]) 
+        Temp1 = A ; 
+      else begin 
+          if(A[30:23]>B[30:23]) 
+            Temp1 = B; 
+          else if(A[30:23]< B[30:23]) 
+            Temp1 = A; 
+          else begin
+              if(A[22:0]>B[22:0])
+                Temp1 = B; 
+              else if(A[22:0]<B[22:0])
+                Temp1 = A ; 
+              else 
+                Temp1 = A; /// means dono equal h 
+          end
+      end
+    end
+    FloatingpointMin = Temp1 ; 
+  endfunction 
+  /////////////////////////////////////////////
+  
+  /////////////////////////////////////////////
+  function[31:0] Floating_LessThan ; 
+    
+    input[31:0] A; 
+    input[31:0] B; 
+    begin
+      if(A[31]<B[31]) 
+        Temp =32'b0 ; // because A is positive and b is negative 
+      else if(A[31]>B[31]) 
+        Temp = 32'b1 ; 
+      else begin 
+          if(A[30:23]>B[30:23]) 
+            Temp = 0; 
+          else if(A[30:23]< B[30:23]) 
+            Temp = 32'b1; 
+          else begin
+              if(A[22:0]>B[22:0])
+                Temp = 32'b0; 
+              else if(A[22:0]<B[22:0])
+                Temp = 32'b1; 
+              else 
+                Temp = 32'b0; 
+          end
+      end
+    end
+     Floating_LessThan = Temp ; 
+  endfunction 
+ ///////////////////////////////////
+  
+ ////////////////////////////////////////
+  function[31:0] Floating_LessThanEqual ; 
+    
+    input[31:0] A; 
+    input[31:0] B; 
+    begin
+      if(A[31]<B[31]) 
+        Temp =0 ; // because A is positive and b is negative 
+      else if(A[31]>B[31]) 
+        Temp = 32'b1 ; 
+      else begin 
+        if(A[30:23]>B[30:23]) 
+          Temp = 32'b0; 
+        else if(A[30:23]< B[30:23]) 
+          Temp = 32'b1; 
+        else begin
+          if(A[22:0]>B[22:0])
+            Temp = 32'b0; 
+          else if(A[22:0]<B[22:0])
+            Temp = 32'b1; 
+          else 
+            Temp = 32'b0; 
+        end
+      end
+    end
+     Floating_LessThanEqual = Temp ; 
+  endfunction 
+  //////////////////////////////////////////
+  
+  
+  //////////////////////////////////////////
+  function[31:0] Floating_Equal ; 
+    
+    input[31:0] A; 
+    input[31:0] B; 
+    begin
+      if(A[31]<B[31]) 
+        Temp =32'b0 ; // because A is positive and b is negative 
+      else if(A[31]>B[31]) 
+        Temp = 32'b0 ; 
+      else begin 
+        if(A[30:23]>B[30:23]) 
+          Temp = 32'b0; 
+        else if(A[30:23]< B[30:23]) 
+          Temp = 32'b0; 
+        else begin
+          if(A[22:0]>B[22:0])
+            Temp = 32'b0; 
+          else if(A[22:0]<B[22:0])
+            Temp = 32'b0; 
+          else 
+            Temp = 32'b1; 
+        end
+      end
+    end
+     Floating_Equal = Temp ; 
+  endfunction 
+/////////////////////////////////////////////////
+	
+
+  
+  //INSTRUCTION FETCH (IF) STAGE
+  always@(posedge clk1)
+    if (HALTED==0 && PC_Write_En==1'b1)///////-----------------------------PC_Write_En    =1'b1
+      begin
+        if ((( EX_MEM_IR[31:25] == BEQZ ) && (EX_MEM_cond == 1)) || 
+            (( EX_MEM_IR[31:25] == BNEQZ ) && ( EX_MEM_cond == 0 ))||
+            (( EX_MEM_IR[31:25] == BGE ) && ( EX_MEM_cond1 == 1 )) ||
+            (( EX_MEM_IR[31:25] == BLT ) && ( EX_MEM_cond2 == 1 )) ||
+            (( EX_MEM_IR[31:25] == BGEU) && ( EX_MEM_cond3 == 1 )) ||
+            (( EX_MEM_IR[31:25] == BLTU) && ( EX_MEM_cond4 == 1 )) ||      
+            ( EX_MEM_IR[31:25] == JAL ) ||  ( EX_MEM_IR[31:25] == JALR ))
+          
+            begin
+              IF_ID_IR       <=#2 Mem[EX_MEM_ALUOut];
+              TAKEN_BRANCH   <=#2 1'b1;
+              IF_ID_NPC      <=#2 EX_MEM_ALUOut +1;
+              PC             <=#2 EX_MEM_ALUOut +1;
+            end
+           else
+             begin
+               IF_ID_IR   <=#2 Mem[PC];
+               IF_ID_NPC  <=#2 PC+1;
+               PC         <=#2 PC+1;
+             end
+       end
+  
+  
+  //INSTRUCTION DECODE (ID) Stage
+  always @ (posedge clk2)
+    begin
+      if (HALTED == 0  && IF_ID_Write_En ==1'b1)/////----------IF_ID_Write_En =1'b1
+        begin
+          case (IF_ID_IR[31:25])               
+            ADD,SUB,AND,OR,XOR,SLT,SLTU,SLL,SRL,SRA,MUL,MULH,MULHU,
+            MULHSU,DIV,DIVU,REM,REMU : ID_EX_type <=#2 RR_ALU; 
+            
+            FADD,FSUB,FMUL, FDIV,FMIN, FMAX,FSQRT : ID_EX_type <=#2 RF_ALU;
+            FEQ,FLE,FLT  : ID_EX_type <=#2 RF_CMP;
+            FMADD, FMSUB, FNMADD, FNMSUB : ID_EX_type<=#2 RF_4ALU;
+            
+            ADDI,SUBI,SLTI, SLTIU ,ANDI, ORI,XORI,SLLI,SRLI,SRAI,
+            NOP,JALR  : ID_EX_type <=#2 RM_ALU;
+            
+            
+            LW,LB,LH,LBU,LHU       : ID_EX_type <=#2 LOAD;
+            
+            LUI,AUIPC              : ID_EX_type <= #2LOAD_UPPER_Imm;
+            
+            SW,SB,SH	           : ID_EX_type <=#2 STORE;
+            
+            BEQZ,BNEQZ,BLT,BGE,BLTU,BGEU : ID_EX_type <=#2 BRANCH;
+            
+            JAL			           : ID_EX_type <=#2 JUMP;
+            
+            HLT                    : ID_EX_type <=#2 HALT;
+             
+            
+            default                : ID_EX_type <=#2 HALT;
+            endcase    
+          
+          if(IF_ID_IR[31:25] == FADD|| FSUB||FMUL||FDIV||FMAX||FMIN||FSQRT||FLT||FLE||FEQ) begin 
+            
+            if (IF_ID_IR [24:20]==5'b00000)
+              ID_EX_A <= #2 0;
+            else
+              ID_EX_A <=#2 FReg[IF_ID_IR[24:20]];
+            
+             if (IF_ID_IR [19:15]==5'b00000)
+               ID_EX_B <=#2 0;
+              else
+                ID_EX_B <=#2 FReg[IF_ID_IR[19:15]];
+            
+          end
+          
+          else if(IF_ID_IR[31:25] == FMADD || FMSUB || FNMADD || FNMSUB) begin 
+            
+            if (IF_ID_IR [24:20]==5'b00000)
+              ID_EX_A <= #2 0;
+            else
+              ID_EX_A <=#2 FReg[IF_ID_IR[24:20]];
+            
+            if (IF_ID_IR [19:15]==5'b00000)
+              ID_EX_B <=#2 0;
+             else
+              ID_EX_B <=#2 FReg[IF_ID_IR[19:15]];
+            
+            if (IF_ID_IR [14:10]==5'b00000)
+              ID_EX_C <=#2 0;
+             else
+              ID_EX_C <=#2 FReg[IF_ID_IR[14:10]];
+            
+          end
+          
+          
+          else begin 
+          
+            if (IF_ID_IR [24:20]==5'b00000)
+                     ID_EX_A <= #2 0;
+                else
+                  ID_EX_A <=#2 Reg[IF_ID_IR[24:20]];
+          
+                if (IF_ID_IR [19:15]==5'b00000)
+                     ID_EX_B <=#2 0;
+                else
+                  ID_EX_B <=#2 Reg[IF_ID_IR[19:15]];
+          end
+                
+                
+                ID_EX_IR  <=  #2 IF_ID_IR;
+                ID_EX_NPC <=  #2 IF_ID_NPC;
+                ID_EX_Imm <=  #2 {{17{IF_ID_IR[14]}}, { IF_ID_IR[14:0]}};
+          
+              end
+        
+      
+      
+  ////////stall control unit/////////////
+      if ((ID_EX_type == 4'b0010) && ((ID_EX_IR[19:15] == IF_ID_IR[24:20])|| (ID_EX_IR[19:15] == IF_ID_IR[19:15])))
+  begin
+  PC_Write_En=1'b0;
+  IF_ID_Write_En=1'b0;
+  Stall_flush =1'b1;
+  end
+  else
+  begin
+  PC_Write_En=1'b1;
+  IF_ID_Write_En=1'b1;
+  Stall_flush =1'b0;
+  end
+  ///////////////////////////////////////
+  end
+     
+  
+  
+  
+  
+ // EXECUTION Stage
+           
+ always @ ( posedge clk1)
+
+      if (HALTED == 0 && Stall_flush ==1'b0)
+    begin
+
+      
+      ///////Forwarding unit-2/////////////////////////////////////////
+      case (EX_MEM_type)
+         RR_ALU         : begin
+           if ((MEM_WB_FORWARDED_A==0) && (EX_MEM_IR[14:10]!=0) &&  (EX_MEM_IR[14:10] == ID_EX_IR[24:20]))
+                           begin
+                             ForwardA =2'b01;
+                             ID_EX_A  = EX_MEM_ALUOut; 
+                           end
+                          if ((MEM_WB_FORWARDED_B==0) &&(EX_MEM_IR[14:10]!=0) &&  (EX_MEM_IR[14:10] == ID_EX_IR[19:15]))
+                           begin
+                             ForwardB=2'b01;
+                             ID_EX_B = EX_MEM_ALUOut;  
+                           end
+                          end
+         
+          RM_ALU, LOAD_UPPER_Imm        : begin
+           				  if ((MEM_WB_FORWARDED_A==0) &&(EX_MEM_IR[19:15]!=0) &&  (EX_MEM_IR[19:15] == ID_EX_IR[24:20]))
+                           begin
+                             ForwardA =2'b01;
+                             ID_EX_A  = EX_MEM_ALUOut; 
+                           end
+                          if ((MEM_WB_FORWARDED_B==0) &&(EX_MEM_IR[19:15]!=0) &&  (EX_MEM_IR[19:15] == ID_EX_IR[19:15]))
+                            begin
+                             ForwardB=2'b01;
+                             ID_EX_B = EX_MEM_ALUOut;  
+                           end
+                          end
+        
+         LOAD            : begin
+           				  if ((MEM_WB_FORWARDED_A==0) &&(EX_MEM_IR[19:15]!=0) &&  (EX_MEM_IR[19:15] == ID_EX_IR[24:20]))
+                           begin
+                             ForwardA =2'b01;
+                             ID_EX_A  = MEM_WB_LMD; 
+                           end
+                          if ((MEM_WB_FORWARDED_B==0) &&(EX_MEM_IR[19:15]!=0) &&  (EX_MEM_IR[19:15] == ID_EX_IR[19:15]))
+                            begin
+                             ForwardB=2'b01;
+                             ID_EX_B = MEM_WB_LMD;  
+                           end
+                          end
+        endcase
+
+      
+       if (ForwardA == 2'b00) 
+         begin
+           ID_EX_A <= ID_EX_A;
+         end
+     
+       else if (ForwardA == 2'b01)
+        begin
+          ForwardA <=#2 2'b00;
+        end
+      
+       else if (ForwardA == 2'b10)
+        begin
+          MEM_WB_FORWARDED_A <=#2 0;
+          ForwardA <=#2 2'b00;
+        end
+          
+                
+      if (ForwardB == 2'b00) 
+         begin
+           ID_EX_B <= ID_EX_B;
+         end
+     
+      else if (ForwardB == 2'b01)
+        begin
+          ForwardB <=#2 2'b00;
+        end
+      
+      else if (ForwardB == 2'b10)
+        begin
+          MEM_WB_FORWARDED_B <=#2 0;
+          ForwardB <=#2 2'b00;
+        end
+          
+      //////////////////////////////////////////////////////////////////////////////
+ 
+      
+      EX_MEM_type  <=#2  ID_EX_type;
+      EX_MEM_IR    <=#2  ID_EX_IR;
+      TAKEN_BRANCH <=#2  0;
+      #2;//to stop the execution until the value of ID_EX_A and ID_EX_B IS NOT CHANGED BY THE FORWARDING UNIT
+      
+      case ( ID_EX_type)
+        
+        RR_ALU: begin
+        
+          case( ID_EX_IR[31:25] )  //OPCODE
+              ADD : EX_MEM_ALUOut  <=#2 ID_EX_A + ID_EX_B;
+              SUB : EX_MEM_ALUOut  <=#2 ID_EX_A - ID_EX_B;
+              AND : EX_MEM_ALUOut  <=#2 ID_EX_A & ID_EX_B;
+              OR  : EX_MEM_ALUOut  <=#2 ID_EX_A | ID_EX_B; 
+              XOR : EX_MEM_ALUOut  <=#2 ID_EX_A ^ ID_EX_B;
+              SLT : EX_MEM_ALUOut  <=#2 ($signed(ID_EX_A) < $signed(ID_EX_B) )? 1:0;
+              SLTU : EX_MEM_ALUOut  <=#2 (ID_EX_A < ID_EX_B )? 1:0;
+              SLL : EX_MEM_ALUOut  <=#2 ID_EX_A << ID_EX_B;
+              SRL : EX_MEM_ALUOut  <=#2 ID_EX_A >> ID_EX_B;
+              SRA : EX_MEM_ALUOut  <=#2 ID_EX_A >>>ID_EX_B;
+              MUL :  EX_MEM_ALUOut <=#2($signed(ID_EX_A)* $signed(ID_EX_B));  
+              MULH : EX_MEM_ALUOut <=#2 ($signed(ID_EX_A)* $signed(ID_EX_B))>>32;  
+            MULHU : EX_MEM_ALUOut <=#2 (ID_EX_A * ID_EX_B)>>32;  
+            MULHSU :EX_MEM_ALUOut <=#2 ($signed(ID_EX_A) * ID_EX_B)>> 32 ; 
+            DIV :  EX_MEM_ALUOut <=#2 ($signed(ID_EX_A)/ $signed(ID_EX_B)); 
+            DIVU :  EX_MEM_ALUOut <=#2 (ID_EX_A/ ID_EX_B) ; 
+            REM  :  EX_MEM_ALUOut <=#2 ($signed(ID_EX_A) % ID_EX_B); 
+            REMU :  EX_MEM_ALUOut <=#2 (ID_EX_A % ID_EX_B) ; 
+             default : EX_MEM_ALUOut <=#2 32'hxxxxxxxx;
+          endcase  
+        end
+        RF_ALU:begin 
+           case( ID_EX_IR[31:25] )
+             FADD: EX_MEM_ALUOut <= #2 floating_point_addition(ID_EX_A,ID_EX_B);
+             FSUB: EX_MEM_ALUOut <= #2 floating_point_subtraction(ID_EX_A,ID_EX_B);
+             FMUL: EX_MEM_ALUOut <= #2 floating_point_multiplication(ID_EX_A,ID_EX_B); 
+             FDIV: EX_MEM_ALUOut <= #2 floating_point_division(ID_EX_A,ID_EX_B); 
+             FSQRT:EX_MEM_ALUOut <= #2 floating_point_sqrt(ID_EX_A); 
+             FMAX: EX_MEM_ALUOut <= #2 FloatingpointMax(ID_EX_A,ID_EX_B); 
+             FMIN: EX_MEM_ALUOut <= #2 FloatingpointMin(ID_EX_A,ID_EX_B); 
+             FLT : EX_MEM_ALUOut <= #2 Floating_LessThan(ID_EX_A,ID_EX_B);
+             FLE : EX_MEM_ALUOut <= #2 Floating_LessThanEqual(ID_EX_A,ID_EX_B);
+             FEQ : EX_MEM_ALUOut <= #2 Floating_Equal(ID_EX_A,ID_EX_B); 
+           
+           default : EX_MEM_ALUOut <=#2 32'hxxxxxxxx;
+           endcase
+              end
+      
+        RF_4ALU:begin 
+           case( ID_EX_IR[31:25] )
+             FMADD: EX_MEM_ALUOut <= #2 floating_point_addition(floating_point_multiplication(ID_EX_A,ID_EX_B),ID_EX_C); //(a*b)+c
+             FMSUB: EX_MEM_ALUOut <= #2 floating_point_subtraction(floating_point_multiplication(ID_EX_A,ID_EX_B),ID_EX_C);//(a*b)-c
+             FNMADD: EX_MEM_ALUOut <= #2 floating_point_addition({1'b1,floating_point_multiplication(ID_EX_A,ID_EX_B)[30:0]},ID_EX_C);//(-a*b)+c
+             //{1'b1,floating_point_multiplication(ID_EX_A,ID_EX_B)[30:0]}--- it will negate the result of a*b and produce -a*b
+             FNMSUB: EX_MEM_ALUOut <=  #2 floating_point_subtraction({1'b1,floating_point_multiplication(ID_EX_A,ID_EX_B)[30:0]},ID_EX_C);//(-a*b)-c
+   
+           default : EX_MEM_ALUOut <=#2 32'hxxxxxxxx;
+           endcase
+        end
+        
+         RF_CMP:begin 
+           case( ID_EX_IR[31:25] ) 
+             FLT : EX_MEM_ALUOut <= #2 Floating_LessThan(ID_EX_A,ID_EX_B);
+             FLE : EX_MEM_ALUOut <= #2 Floating_LessThanEqual(ID_EX_A,ID_EX_B);
+             FEQ : EX_MEM_ALUOut <= #2 Floating_Equal(ID_EX_A,ID_EX_B); 
+           
+           default : EX_MEM_ALUOut <=#2 32'hxxxxxxxx;
+           endcase
+              end
+        
+        RM_ALU:  begin          
+          case(ID_EX_IR[31:25])
+                 ADDI : EX_MEM_ALUOut <=#2 ID_EX_A + ID_EX_Imm;
+                 SUBI : EX_MEM_ALUOut <=#2 ID_EX_A - ID_EX_Imm;
+                 SLTIU : EX_MEM_ALUOut <=#2 (ID_EX_A < ID_EX_Imm) ? 1:0;
+                 SLTI : EX_MEM_ALUOut <=#2 ($signed(ID_EX_A) < $signed(ID_EX_Imm)) ? 1:0;
+                 ANDI : EX_MEM_ALUOut <=#2 ID_EX_A & ID_EX_Imm;
+                 ORI  : EX_MEM_ALUOut <=#2 ID_EX_A | ID_EX_Imm;
+                 XORI : EX_MEM_ALUOut <=#2 ID_EX_A ^ ID_EX_Imm;
+                 SLLI : EX_MEM_ALUOut <=#2 ID_EX_A << ID_EX_Imm;
+                 SRLI : EX_MEM_ALUOut <=#2 ID_EX_A >> ID_EX_Imm;
+                 SRAI : EX_MEM_ALUOut <=#2 ID_EX_A >>> ID_EX_Imm;
+                 NOP  : EX_MEM_ALUOut <=#2 ID_EX_A +  ID_EX_Imm;
+                 JALR : EX_MEM_ALUOut <=#2 ID_EX_A + ID_EX_Imm; 
+                 default:EX_MEM_ALUOut <=#2 32'hxxxxxxxx;
+                 endcase
+                 end
+         LOAD, STORE : begin
+                       EX_MEM_ALUOut <=#2 ID_EX_A + ID_EX_Imm; 
+                       EX_MEM_B      <=#2 ID_EX_B;
+                       end
+         LOAD_UPPER_Imm : begin
+           EX_MEM_ALUOut <=#2  {ID_EX_IR[24:21], ID_EX_IR[15:0],12'b0}; 
+           EX_MEM_B      <=#2 ID_EX_B;
+                       end
+         BRANCH: begin
+           
+           EX_MEM_ALUOut <=#2   ID_EX_NPC + $signed(ID_EX_Imm);
+           EX_MEM_cond   <=#2   (ID_EX_A ==0);// Condition for BEQZ , BNEQZ 
+           EX_MEM_cond1 <= #2   ($signed(ID_EX_A) > $signed(ID_EX_B)) ; // Condition for BGE 
+           
+           EX_MEM_cond2 <= #2   ($signed(ID_EX_A) <= $signed(ID_EX_B)) ;  // Condition for BLT
+           
+           EX_MEM_cond3 <= #2   (ID_EX_A >= ID_EX_B) ; //BGEU
+           EX_MEM_cond4 <= #2   (ID_EX_A < ID_EX_B); //BLTU
+                 end
+        JUMP: EX_MEM_ALUOut <=#2 ID_EX_NPC + {{12{IF_ID_IR[19]}},{IF_ID_IR[19]},{IF_ID_IR[9:0]},{IF_ID_IR[10]},{IF_ID_IR[18:11]}};
+        
+       endcase
+    end
+   
+ // MEM STAGE
+            
+ always @ (posedge clk2)
+   if (HALTED == 0)
+     begin
+       
+       
+       ////////////////////////////////FORWARDING UNIT-1/////////////////////////////////////
+       case (MEM_WB_type)
+         RR_ALU         : begin
+           if ((MEM_WB_IR[14:10]!=0) && ( MEM_WB_IR[14:10] == IF_ID_IR[24:20]))
+                           begin
+                             ForwardA=2'b10;
+                             ID_EX_A =  MEM_WB_ALUOut;
+                             MEM_WB_FORWARDED_A=1;
+                           end
+           if ((MEM_WB_IR[14:10]!=0) && (MEM_WB_IR[14:10] == IF_ID_IR[19:15]))
+                           begin
+                            ForwardB=2'b10;
+                             ID_EX_B =  MEM_WB_ALUOut;
+                             MEM_WB_FORWARDED_B=1;
+                           end
+                          end
+         
+          RM_ALU, LOAD_UPPER_Imm         : begin
+            if ((MEM_WB_IR[19:15]!=0) && ( MEM_WB_IR[19:15] == IF_ID_IR[24:20]))
+                           begin
+                             ForwardA=2'b10;
+                             ID_EX_A =  MEM_WB_ALUOut;
+                             MEM_WB_FORWARDED_A=1;
+                           end
+            if ((MEM_WB_IR[19:15]!=0) && (MEM_WB_IR[19:15]  == IF_ID_IR[19:15]))
+                           begin
+                             ForwardB=2'b10;
+                             ID_EX_B =  MEM_WB_ALUOut;
+                             MEM_WB_FORWARDED_B=1;
+                           end
+                          end
+        endcase
+       ///////////////////////////////////////////////////////////////////////////////////////////////
+       
+      
+       
+       MEM_WB_type <= #2 EX_MEM_type;
+       MEM_WB_IR   <= #2 EX_MEM_IR;
+       
+       case (EX_MEM_type)
+         RF_ALU, RF_4ALU, RF_CMP,RR_ALU, RM_ALU,JUMP:   MEM_WB_ALUOut <= #2 EX_MEM_ALUOut;
+         LOAD 			:   MEM_WB_LMD    <=#2 D_Mem[EX_MEM_ALUOut];
+         
+         LOAD_UPPER_Imm :   MEM_WB_ALUOut  <=#2 EX_MEM_ALUOut;
+         
+         STORE :  begin
+           case( EX_MEM_IR[31:25] )        
+             SW: begin 
+               if (TAKEN_BRANCH == 0)
+                 D_Mem [EX_MEM_ALUOut] <=#2 EX_MEM_B; end 
+             SB : begin 
+               if (TAKEN_BRANCH == 0) 
+                 D_Mem [EX_MEM_ALUOut] <=#2{{24{EX_MEM_B[7]}},{EX_MEM_B[7:0]}}; end
+             
+             SH : begin 
+               if (TAKEN_BRANCH == 0) 
+                 D_Mem [EX_MEM_ALUOut] <=#2{{16{EX_MEM_B[15]}},{EX_MEM_B[15:0]}};end
+           endcase 
+             end
+           				   
+        endcase
+     end
+  
+  
+            
+            
+ //WB STAGE
+ always @ (posedge clk1)
+   begin
+     if( TAKEN_BRANCH == 0)
+       case (MEM_WB_type)
+         RR_ALU: Reg[MEM_WB_IR[14:10]] <=#2 MEM_WB_ALUOut; 
+         RF_ALU: FReg[MEM_WB_IR[14:10]]<= #2 MEM_WB_ALUOut;
+         RF_4ALU: FReg[MEM_WB_IR[9:5]]<= #2 MEM_WB_ALUOut;
+         RF_CMP: Reg[MEM_WB_IR[14:10]] <= #2 MEM_WB_ALUOut;//floating point compare instructions ke result ko integer registes me strore krna hota h
+         RM_ALU: Reg[MEM_WB_IR[19:15]] <=#2 MEM_WB_ALUOut;
+         JUMP  : Reg[MEM_WB_IR[24:20]] <=#2 MEM_WB_ALUOut;
+         
+         LOAD_UPPER_Imm : begin 
+           case( MEM_WB_IR[31:25] )  
+             LUI : Reg[MEM_WB_IR[19:15]] <=#2 MEM_WB_ALUOut;
+             AUIPC: Reg[MEM_WB_IR[19:15]] <=#2 MEM_WB_ALUOut +PC;
+           endcase 
+         end
+         
+         LOAD  : begin
+           case( MEM_WB_IR[31:25] )   
+             LW:  Reg[MEM_WB_IR[19:15]] <=#2 MEM_WB_LMD;
+             LB:  Reg[MEM_WB_IR[19:15]] <= #2 {{24{MEM_WB_LMD[7]}},  {MEM_WB_LMD[7:0]}};
+             LH : Reg[MEM_WB_IR[19:15]] <= #2 {{16{MEM_WB_LMD[15]}}, { MEM_WB_LMD[15:0]}} ; 
+             LBU: Reg[MEM_WB_IR[19:15]] <= #2 {24'b0,MEM_WB_LMD[7:0]};
+             LHU: Reg[MEM_WB_IR[19:15]] <= #2 {16'b0,MEM_WB_LMD[15:0]};
+           endcase 
+         end
+         
+         HALT:   HALTED <=#2 1'b1;
+       endcase
+   end           
+  endmodule
+            
