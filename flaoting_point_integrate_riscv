@@ -782,9 +782,9 @@ begin
            case( ID_EX_IR[31:25] )
              FMADD: EX_MEM_ALUOut <= #2 floating_point_addition(floating_point_multiplication(ID_EX_A,ID_EX_B),ID_EX_C); //(a*b)+c
              FMSUB: EX_MEM_ALUOut <= #2 floating_point_subtraction(floating_point_multiplication(ID_EX_A,ID_EX_B),ID_EX_C);//(a*b)-c
-             FNMADD: EX_MEM_ALUOut <= #2 floating_point_addition({1'b1,floating_point_multiplication(ID_EX_A,ID_EX_B)[30:0]},ID_EX_C);//(-a*b)+c
+             FNMADD: EX_MEM_ALUOut <= #2 floating_point_addition({~floating_point_multiplication(ID_EX_A,ID_EX_B)[31],floating_point_multiplication(ID_EX_A,ID_EX_B)[30:0]},ID_EX_C);//(-a*b)+c
              //{1'b1,floating_point_multiplication(ID_EX_A,ID_EX_B)[30:0]}--- it will negate the result of a*b and produce -a*b
-             FNMSUB: EX_MEM_ALUOut <=  #2 floating_point_subtraction({1'b1,floating_point_multiplication(ID_EX_A,ID_EX_B)[30:0]},ID_EX_C);//(-a*b)-c
+             FNMSUB: EX_MEM_ALUOut <=  #2 floating_point_subtraction({~floating_point_multiplication(ID_EX_A,ID_EX_B)[31],floating_point_multiplication(ID_EX_A,ID_EX_B)[30:0]},ID_EX_C);//(-a*b)-c
    
            default : EX_MEM_ALUOut <=#2 32'hxxxxxxxx;
            endcase
