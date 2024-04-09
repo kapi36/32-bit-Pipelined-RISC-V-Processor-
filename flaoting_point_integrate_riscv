@@ -1,5 +1,6 @@
 // Code your design here
 // Code your design here
+// Code your design here
 
 module RISCV_32(clk1,clk2);
   input clk1,clk2;  //Two phase clock
@@ -7,10 +8,9 @@ module RISCV_32(clk1,clk2);
   reg [31:0] PC, IF_ID_IR, IF_ID_NPC;
   reg [31:0] ID_EX_IR, ID_EX_NPC, ID_EX_A, ID_EX_B,ID_EX_C,ID_EX_Imm;//ID_EX_C is used for 3 source registers floating point instructions
   reg [3:0]  ID_EX_type, EX_MEM_type, MEM_WB_type;
-  reg [31:0] EX_MEM_IR, EX_MEM_ALUOut, EX_MEM_B, EX_MEM_cond;
+  reg [31:0] EX_MEM_IR, EX_MEM_ALUOut, EX_MEM_B, EX_MEM_cond,EX_MEM_Midout;
   reg [31:0] MEM_WB_IR, MEM_WB_ALUOut, MEM_WB_LMD;
   reg [31:0] EX_MEM_cond1 , EX_MEM_cond2, EX_MEM_cond3,EX_MEM_cond4;
-  reg [63:0] Reg_For_Mul; 
  
   
   reg [31:0] Reg [0:31];  // Register bank of 32 registers with each registers of 32 bit width
@@ -581,7 +581,8 @@ begin
             
           end
           
-          else if(IF_ID_IR[31:25] == FMADD || FMSUB || FNMADD || FNMSUB) begin 
+          else if(IF_ID_IR[31:25] == FMADD||FMSUB||FNMADD||FNMSUB) begin
+           
             
             if (IF_ID_IR [24:20]==5'b00000)
               ID_EX_A <= #2 0;
@@ -776,15 +777,20 @@ begin
            
            default : EX_MEM_ALUOut <=#2 32'hxxxxxxxx;
            endcase
+          
               end
       
         RF_4ALU:begin 
            case( ID_EX_IR[31:25] )
-             FMADD: EX_MEM_ALUOut <= #2 floating_point_addition(floating_point_multiplication(ID_EX_A,ID_EX_B),ID_EX_C); //(a*b)+c
-             FMSUB: EX_MEM_ALUOut <= #2 floating_point_subtraction(floating_point_multiplication(ID_EX_A,ID_EX_B),ID_EX_C);//(a*b)-c
-             FNMADD: EX_MEM_ALUOut <= #2 floating_point_addition({~floating_point_multiplication(ID_EX_A,ID_EX_B)[31],floating_point_multiplication(ID_EX_A,ID_EX_B)[30:0]},ID_EX_C);//(-a*b)+c
+             FMADD: 
+               begin
+                 EX_MEM_Midout <= #2  floating_point_multiplication(ID_EX_A,ID_EX_B); 
+                 EX_MEM_ALUOut <= #2  floating_point_addition(EX_MEM_Midout,ID_EX_C); //(a*b)+c
+               end
+             FMSUB: EX_MEM_ALUOut <= #2  floating_point_subtraction(floating_point_multiplication(ID_EX_A,ID_EX_B),ID_EX_C);//(a*b)-c
+             FNMADD: EX_MEM_ALUOut <= #2 floating_point_addition(~{floating_point_multiplication(ID_EX_A,ID_EX_B)[31],floating_point_multiplication(ID_EX_A,ID_EX_B)[30:0]},ID_EX_C);//(-a*b)+c
              //{1'b1,floating_point_multiplication(ID_EX_A,ID_EX_B)[30:0]}--- it will negate the result of a*b and produce -a*b
-             FNMSUB: EX_MEM_ALUOut <=  #2 floating_point_subtraction({~floating_point_multiplication(ID_EX_A,ID_EX_B)[31],floating_point_multiplication(ID_EX_A,ID_EX_B)[30:0]},ID_EX_C);//(-a*b)-c
+             FNMSUB: EX_MEM_ALUOut <=  #2 floating_point_subtraction(~{floating_point_multiplication(ID_EX_A,ID_EX_B)[31],floating_point_multiplication(ID_EX_A,ID_EX_B)[30:0]},ID_EX_C);//(-a*b)-c
    
            default : EX_MEM_ALUOut <=#2 32'hxxxxxxxx;
            endcase
@@ -921,7 +927,7 @@ begin
        case (MEM_WB_type)
          RR_ALU: Reg[MEM_WB_IR[14:10]] <=#2 MEM_WB_ALUOut; 
          RF_ALU: FReg[MEM_WB_IR[14:10]]<= #2 MEM_WB_ALUOut;
-         RF_4ALU: FReg[MEM_WB_IR[9:5]]<= #2 MEM_WB_ALUOut;
+         RF_4ALU: FReg[MEM_WB_IR[9:5]] <= #2 MEM_WB_ALUOut;
          RF_CMP: Reg[MEM_WB_IR[14:10]] <= #2 MEM_WB_ALUOut;//floating point compare instructions ke result ko integer registes me strore krna hota h
          RM_ALU: Reg[MEM_WB_IR[19:15]] <=#2 MEM_WB_ALUOut;
          JUMP  : Reg[MEM_WB_IR[24:20]] <=#2 MEM_WB_ALUOut;
