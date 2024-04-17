@@ -1,9 +1,3 @@
-// Code your testbench here
-// or browse Examples
-// Code your testbench here
-// or browse Examples
-// Code your testbench here
-
 module test_risc32;
   reg clk1, clk2;
   reg value1 ; 
@@ -23,7 +17,6 @@ module test_risc32;
       #5 clk1 = 1;
     end
   end
-  
   
   /////////////////Function to convert 32 bits ieee format to shortreal////////////  
 function real bits_to_shortreal;
@@ -76,14 +69,18 @@ endfunction
     risc.FReg[5] = 32'b0_01111110_00000101000111101011100;  // F5 = 0.51
 #20
   
-    risc.Mem[0] = 32'h74110d60; //FMADD F4 F1 F2 F3 
-    risc.Mem[1] = 32'hfe000000;// HLT
+    risc.Mem[0] = 32'h74110c80; //FMADD F4 F1 F2 F3 
+    risc.Mem[1] = 32'h761114c0;//FMSUB F6 F1 F2 F5 
+    risc.Mem[2] = 32'h783104e0; // FNMADD F7 F3 F2 F1
+    risc.Mem[3] = 32'h7a111500;// FNMSUB F8 F1 F2 F5
+    risc.Mem[4] = 32'hfe000000;// HLT
     risc.HALTED = 0;
     risc.PC = 0;
     risc.TAKEN_BRANCH = 0;
   
-    $monitor("F1 = %0f,F2= %0f,F3 = %0f ,F4 = %0f,ID_EX_A = %0f,ID_EX_B = %0f,ID_EX_C = %0f,EX_MEM_ALUOut = %0f,EX_MEM_Midout = %0f,IF_ID_IR[31:25] = %0d",bits_to_shortreal(risc.FReg[1]),bits_to_shortreal(risc.FReg[2]),bits_to_shortreal(risc.FReg[3]),bits_to_shortreal(risc.FReg[4]),bits_to_shortreal(risc.ID_EX_A),bits_to_shortreal(risc.ID_EX_B),bits_to_shortreal(risc.ID_EX_C),bits_to_shortreal(risc.EX_MEM_ALUOut),bits_to_shortreal(risc.EX_MEM_Midout),risc.IF_ID_IR[31:25]); 
+    $monitor("F1 = %0f,F2= %0f,F3 = %0f ,F4 = %0f,F5 =%0f,F6 =%0f, F7 = %0f, F8 =%0f, ID_EX_A = %0f,ID_EX_B = %0f,ID_EX_C = %0f,EX_MEM_ALUOut = %0f,EX_MEM_Midout = %0f,IF_ID_IR[31:25] = %0d",bits_to_shortreal(risc.FReg[1]),bits_to_shortreal(risc.FReg[2]),bits_to_shortreal(risc.FReg[3]),bits_to_shortreal(risc.FReg[4]),bits_to_shortreal(risc.FReg[5]),bits_to_shortreal(risc.FReg[6]),bits_to_shortreal(risc.FReg[7]),bits_to_shortreal(risc.FReg[8]),bits_to_shortreal(risc.ID_EX_A),bits_to_shortreal(risc.ID_EX_B),bits_to_shortreal(risc.ID_EX_C),bits_to_shortreal(risc.EX_MEM_ALUOut),bits_to_shortreal(risc.EX_MEM_Midout),risc.IF_ID_IR[31:25]); 
   end
+  
 //    initial
 //   begin
 // //     for (k=0; k<31; k++)
@@ -97,7 +94,7 @@ endfunction
 //     risc.FReg[5] = 32'b0_01111110_00000101000111101011100;  // F5 = 0.51
 // #20
     
-//     risc.Mem[0] = 32'h60110c00; // FADD FR3,FR1,FR2
+//     risc.Mem[0] = 32'h60110c00; // FADD F3,F1,F2
 //     risc.Mem[1] = 32'h62429800; // FSUB F6 F4 F5 
 //     risc.Mem[2] = 32'h64111c00; // FMUL F7 F1 F2 
  
