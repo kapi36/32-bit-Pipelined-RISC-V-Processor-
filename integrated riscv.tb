@@ -60,26 +60,83 @@ return real_output;
 endfunction
 ////////////////////////////////////////////////////////
   
-  initial begin 
-    risc.FReg[0] = 32'h00000000; 
-    risc.FReg[1] = 32'b0_10000000_10011001100110011001100;  // // F1 = 3.2
-    risc.FReg[2] = 32'b0_10000001_00001100110011001100110;  //  F2 = 4.2
-    risc.FReg[3] = 32'b0_01111110_01010001111010111000010;  // F3 = 0.66
-    
-    risc.FReg[5] = 32'b0_01111110_00000101000111101011100;  // F5 = 0.51
-#20
   
-    risc.Mem[0] = 32'h74110c80; //FMADD F4 F1 F2 F3 
-    risc.Mem[1] = 32'h761114c0;//FMSUB F6 F1 F2 F5 
-    risc.Mem[2] = 32'h783104e0; // FNMADD F7 F3 F2 F1
-    risc.Mem[3] = 32'h7a111500;// FNMSUB F8 F1 F2 F5
-    risc.Mem[4] = 32'hfe000000;// HLT
-    risc.HALTED = 0;
-    risc.PC = 0;
-    risc.TAKEN_BRANCH = 0;
   
-    $monitor("F1 = %0f,F2= %0f,F3 = %0f ,F4 = %0f,F5 =%0f,F6 =%0f, F7 = %0f, F8 =%0f, ID_EX_A = %0f,ID_EX_B = %0f,ID_EX_C = %0f,EX_MEM_ALUOut = %0f,EX_MEM_Midout = %0f,IF_ID_IR[31:25] = %0d",bits_to_shortreal(risc.FReg[1]),bits_to_shortreal(risc.FReg[2]),bits_to_shortreal(risc.FReg[3]),bits_to_shortreal(risc.FReg[4]),bits_to_shortreal(risc.FReg[5]),bits_to_shortreal(risc.FReg[6]),bits_to_shortreal(risc.FReg[7]),bits_to_shortreal(risc.FReg[8]),bits_to_shortreal(risc.ID_EX_A),bits_to_shortreal(risc.ID_EX_B),bits_to_shortreal(risc.ID_EX_C),bits_to_shortreal(risc.EX_MEM_ALUOut),bits_to_shortreal(risc.EX_MEM_Midout),risc.IF_ID_IR[31:25]); 
+/// FMOVE Instruction
+  
+initial 
+begin 
+risc.FReg[0] = 32'h00000000; 
+risc.Reg[1] = -98;
+      
+  risc.Mem[0] = 32'h86108000;//FCVTSW R1,F1  
+risc.Mem[1] = 32'hfe000000;// HLT
+risc.HALTED = 0;
+risc.PC = 0;
+risc.TAKEN_BRANCH = 0;
+  
+  $monitor("time=%0t, F1 = %0f,R1 =%0d, ID_EX_A = %0d, EX_MEM_ALUOut = %0d,MEM_WB_ALUOut = %0d ",$time,$bitstoshortreal(risc.FReg[1]),$signed(risc.Reg[1]),$signed(risc.ID_EX_A),(risc.EX_MEM_ALUOut),(risc.MEM_WB_ALUOut)); 
   end
+  
+   
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+  
+//   /// FCLASS Instruction
+  
+//     initial begin 
+//     risc.FReg[0] = 32'h00000000; 
+//       risc.FReg[1] = 32'b0_11111111_00000000000000000000000;  // // F1 = 3.2
+      
+//     risc.Mem[0] = 32'h92108000;//FCLASS R1 F1  
+//     risc.Mem[1] = 32'hfe000000;// HLT
+//     risc.HALTED = 0;
+//     risc.PC = 0;
+//     risc.TAKEN_BRANCH = 0;
+  
+//       $monitor("time=%0t, F1 = %0f,R1 =%0b, ID_EX_A = %0f,EX_MEM_ALUOut = %0b ",$time,$bitstoshortreal(risc.FReg[1]),risc.Reg[1],$bitstoshortreal(risc.ID_EX_A),risc.EX_MEM_ALUOut); 
+//   end
+  
+  
+  
+  
+  
+  
+  
+//   initial begin 
+//     risc.FReg[0] = 32'h00000000; 
+//     risc.FReg[1] = 32'b0_10000000_10011001100110011001100;  // // F1 = 3.2
+//     risc.FReg[2] = 32'b0_10000001_00001100110011001100110;  //  F2 = 4.2
+//     risc.FReg[3] = 32'b0_01111110_01010001111010111000010;  // F3 = 0.66
+    
+//     risc.FReg[5] = 32'b0_01111110_00000101000111101011100;  // F5 = 0.51
+// #20
+  
+//     risc.Mem[0] = 32'h74110c80; //FMADD F4 F1 F2 F3 
+//     risc.Mem[1] = 32'h761114c0;//FMSUB F6 F1 F2 F5 
+//     risc.Mem[2] = 32'h783104e0; // FNMADD F7 F3 F2 F1
+//     risc.Mem[3] = 32'h7a111500;// FNMSUB F8 F1 F2 F5
+//     risc.Mem[4] = 32'hfe000000;// HLT
+//     risc.HALTED = 0;
+//     risc.PC = 0;
+//     risc.TAKEN_BRANCH = 0;
+  
+//     $monitor("F1 = %0f,F2= %0f,F3 = %0f ,F4 = %0f,F5 =%0f,F6 =%0f, F7 = %0f, F8 =%0f, ID_EX_A = %0f,ID_EX_B = %0f,ID_EX_C = %0f,EX_MEM_ALUOut = %0f,EX_MEM_Midout = %0f,IF_ID_IR[31:25] = %0d",bits_to_shortreal(risc.FReg[1]),bits_to_shortreal(risc.FReg[2]),bits_to_shortreal(risc.FReg[3]),bits_to_shortreal(risc.FReg[4]),bits_to_shortreal(risc.FReg[5]),bits_to_shortreal(risc.FReg[6]),bits_to_shortreal(risc.FReg[7]),bits_to_shortreal(risc.FReg[8]),bits_to_shortreal(risc.ID_EX_A),bits_to_shortreal(risc.ID_EX_B),bits_to_shortreal(risc.ID_EX_C),bits_to_shortreal(risc.EX_MEM_ALUOut),bits_to_shortreal(risc.EX_MEM_Midout),risc.IF_ID_IR[31:25]); 
+//   end
   
 //    initial
 //   begin
@@ -159,7 +216,7 @@ endfunction
 //   end
   
   
- //Multiply verification 
+//  //Multiply verification 
   
 //   initial
 //   begin
@@ -173,7 +230,7 @@ endfunction
 //     risc.PC = 0;
 //     risc.TAKEN_BRANCH = 0;
 //     $monitor ("time=%0t, R1= %0d, R2=%0d, R3=%0d, R4=%0d,R5=%0d,",$time,$signed(risc.Reg[1]),$signed(risc.Reg[2]),$signed(risc.Reg[3]),$signed(risc.Reg[4]),$signed(risc.Reg[5]));
-//   end
+//    end
   
   
     //LOGICAL OPOERATIONS----10 clk cycle 
@@ -224,9 +281,9 @@ endfunction
 //  end
   
 // //   //   ///SET LESS THAN (SLT & SLTI &SLTU)---6 clk cycle
-// //    initial
-// //   begin
-// //    for (k=0; k<31; k++)
+//    initial
+//    begin
+//    for (k=0; k<31; k++)
 //       risc.Reg[k] = k;
     
 //     risc.Mem[0] = 32'h1400fffb; // ADDI R1,R0,-5
@@ -408,4 +465,5 @@ initial
     $dumpvars (0, test_risc32);
     #2000 $finish;
   end
+
 endmodule
